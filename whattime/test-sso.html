@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatTime SSO Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 600px;
+        margin: 20px auto;
+        padding: 20px;
+      }
+      button {
+        background: #0078d4;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin: 10px 0;
+      }
+      button:hover {
+        background: #106ebe;
+      }
+      #result {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 15px 0;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>WhatTime SSO Integration Test</h1>
+
+    <button onclick="testBackendConnection()">Test Backend Connection</button>
+    <button onclick="testMockSSO()">Test Mock SSO</button>
+
+    <div id="result"></div>
+
+    <script>
+      async function testBackendConnection() {
+        const resultDiv = document.getElementById("result");
+        resultDiv.textContent = "Testing backend connection...";
+
+        try {
+          const response = await fetch("http://localhost:8000/health");
+          const data = await response.json();
+          resultDiv.textContent = "Backend connection successful:\n" + JSON.stringify(data, null, 2);
+          resultDiv.style.color = "green";
+        } catch (error) {
+          resultDiv.textContent = "Backend connection failed:\n" + error.message;
+          resultDiv.style.color = "red";
+        }
+      }
+
+      async function testMockSSO() {
+        const resultDiv = document.getElementById("result");
+        resultDiv.textContent = "Testing mock SSO authentication...";
+
+        // Mock Microsoft Graph data (similar to what we'd get from Office.js)
+        const mockGraphData = {
+          id: "test-graph-user-id",
+          mail: "testuser@contoso.com",
+          userPrincipalName: "testuser@contoso.com",
+          displayName: "Test User",
+          givenName: "Test",
+          surname: "User",
+        };
+
+        try {
+          const response = await fetch("http://localhost:8000/api/auth/microsoft/profile", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              profile: {
+                id: mockGraphData.id,
+                email: mockGraphData.mail || mockGraphData.userPrincipalName,
+                displayName: mockGraphData.displayName,
+                firstName: mockGraphData.givenName,
+                lastName: mockGraphData.surname,
+              },
+            }),
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            resultDiv.textContent =
+              "SSO authentication successful!\n\n" +
+              "User: " +
+              data.data.user.displayName +
+              "\n" +
+              "Email: " +
+              data.data.user.email +
+              "\n" +
+              "Token received: Yes\n\n" +
+              "Full response:\n" +
+              JSON.stringify(data, null, 2);
+            resultDiv.style.color = "green";
+          } else {
+            resultDiv.textContent = "SSO authentication failed:\n" + JSON.stringify(data, null, 2);
+            resultDiv.style.color = "red";
+          }
+        } catch (error) {
+          resultDiv.textContent = "SSO test failed:\n" + error.message;
+          resultDiv.style.color = "red";
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -1,75 +1,67 @@
-# WhatTime - Outlook Add-in for Smart Meeting Scheduling
+# WhatTime - Microsoft Outlook Add-in for Meeting Scheduling
 
-WhatTime is a Microsoft Outlook add-in that optimizes meeting scheduling with smart calendar insights and Microsoft Graph API integration.
+WhatTime is a Microsoft Outlook add-in that streamlines meeting scheduling with intelligent time selection, participant management, and email-based availability collection.
 
-## Project Structure
+## 🏗️ Project Architecture
+
+This project consists of **three main components**:
 
 ```
-whattime/
-├── frontend/               # Next.js React frontend for the add-in
-│   ├── app/
-│   │   ├── taskpane/      # Main add-in interface
-│   │   ├── commands/      # UI-less command functions
-│   │   └── auth/          # OAuth callback pages
-│   ├── components/ui/     # Reusable UI components
-│   ├── lib/              # Authentication store and API client
-│   ├── manifest.xml      # Outlook add-in manifest
-│   └── next.config.mjs   # Next.js configuration
-├── backend/               # Express.js backend API
+WhatTime/
+├── whattime/              # 📱 Office Add-in (Main Application)
 │   ├── src/
-│   │   ├── auth/         # Authentication services
-│   │   ├── routes/       # API route handlers
-│   │   ├── db/           # Database schema and migrations
-│   │   └── index.ts      # Express server entry point
-│   └── drizzle.config.ts # Database configuration
-└── docs/                 # Additional documentation
+│   │   ├── taskpane/     # Add-in interface (HTML/CSS/TypeScript)
+│   │   ├── middle-tier/  # Express server + Microsoft Graph SSO
+│   │   ├── commands/     # Outlook command functions
+│   │   └── helpers/      # Utility functions
+│   ├── manifest.xml      # Office Add-in manifest
+│   └── dist/            # Compiled files
+├── backend/              # 🚀 Express.js API Server
+│   ├── src/
+│   │   ├── auth/        # Authentication & Microsoft OAuth
+│   │   ├── routes/      # REST API endpoints
+│   │   ├── database/    # Drizzle ORM + PostgreSQL
+│   │   ├── calendar/    # Microsoft Graph integration
+│   │   └── types/       # TypeScript definitions
+│   └── drizzle.config.ts
+└── whattime_example/     # 🎨 Next.js UI Reference
+    ├── app/create/      # Meeting creation interfaces
+    ├── components/ui/   # React UI components
+    └── hooks/          # React hooks (for reference)
 ```
 
-## Features
+## ✅ Current Status (Phase 1.2 Complete)
 
-- **Microsoft OAuth Integration**: Secure authentication with Microsoft accounts
-- **JWT Token Management**: Secure session handling with refresh tokens
-- **Calendar Integration**: Access to Microsoft Calendar via Graph API
-- **Smart Scheduling**: Find optimal meeting times across multiple calendars
-- **Availability Checking**: Check participant availability
-- **Conflict Detection**: Identify and resolve calendar conflicts
+### Working Features
 
-## Technology Stack
+- **Office Add-in**: Running on localhost:3000 with HTTPS
+- **Microsoft Graph SSO**: Environment-based authentication (mock for dev, real for production)
+- **Backend API**: Express.js server on port 8000 with PostgreSQL database
+- **Database**: User creation/lookup with JWT authentication
+- **ngrok Integration**: External access for Outlook testing
 
-### Frontend
+### Authentication Flow (✅ Working)
 
-- **Next.js 15** - React framework with static export support
-- **TypeScript** - Type safety and development experience
-- **Tailwind CSS** - Utility-first CSS framework
-- **Zustand** - State management for authentication
-- **Axios** - HTTP client for API requests
-- **Custom UI Components** - Built-in components for consistency
+1. Office Add-in loads in Outlook
+2. User clicks authentication button
+3. SSO connects to Microsoft Graph (production) or uses mock data (development)
+4. Profile sent to backend API (`/api/auth/microsoft/profile`)
+5. Backend creates/updates user in PostgreSQL database
+6. JWT tokens returned and stored in localStorage
 
-### Backend
-
-- **Express.js** - Web application framework
-- **TypeScript** - Type safety across the stack
-- **Drizzle ORM** - Database ORM with PostgreSQL
-- **MSAL Node** - Microsoft authentication library
-- **JWT** - Token-based authentication
-- **CORS & Security** - Cross-origin and security middleware
-
-### Database
-
-- **PostgreSQL** - Reliable relational database
-- **Drizzle ORM** - Type-safe database operations
-
-## Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 18+
 - PostgreSQL database
-- Microsoft Azure App Registration
+- Microsoft Azure app registration (for production SSO)
 
-### Environment Setup
+### 1. Environment Setup
 
-1. **Backend Environment** (`.env` in `/backend`):
+Create `.env` files:
+
+**Backend** (`.env` in `/backend`):
 
 ```env
 DATABASE_URL=postgresql://username:password@localhost:5432/whattime
@@ -78,199 +70,211 @@ JWT_REFRESH_SECRET=your_jwt_refresh_secret
 MICROSOFT_CLIENT_ID=your_azure_app_client_id
 MICROSOFT_CLIENT_SECRET=your_azure_app_client_secret
 MICROSOFT_TENANT_ID=your_azure_tenant_id
-CORS_ORIGIN=http://localhost:3000
-PORT=5000
-```
-
-2. **Frontend Environment** (`.env.local` in `/frontend`):
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:5000
+PORT=8000
 NODE_ENV=development
 ```
 
-### Installation & Development
+**Office Add-in** (`.env` in `/whattime`):
 
-1. **Install Dependencies**:
+```env
+HTTPS=true
+PORT=3000
+```
+
+### 2. Installation
 
 ```bash
+# Install root dependencies
+npm install
+
 # Install backend dependencies
 cd backend
 npm install
 
-# Install frontend dependencies
-cd ../frontend
-npm install --legacy-peer-deps
+# Install Office Add-in dependencies
+cd ../whattime
+npm install
+
+# Install example frontend dependencies (optional)
+cd ../whattime_example
+npm install
 ```
 
-2. **Database Setup**:
+### 3. Database Setup
 
 ```bash
 cd backend
 npm run db:migrate
+npm run dev  # Start backend server
 ```
 
-3. **Start Development Servers**:
+### 4. Start Office Add-in
 
 ```bash
-# Terminal 1: Start backend
-cd backend
-npm run dev
-
-# Terminal 2: Start frontend
-cd frontend
-npm run addin:dev
+cd whattime
+npm start  # Starts HTTPS server on port 3000
 ```
 
-### Microsoft Azure Setup
+### 5. ngrok Setup (for Outlook testing)
 
-1. Register your application in Azure Portal
-2. Configure redirect URIs:
-   - `http://localhost:3000/auth/success`
-   - `http://localhost:3000/auth/error`
-3. Grant Microsoft Graph API permissions:
-   - `Calendars.ReadWrite`
-   - `User.Read`
-   - `offline_access`
+```bash
+# In new terminal
+ngrok http https://localhost:3000
 
-### Outlook Add-in Installation
+# Update manifest.xml with ngrok URL
+# Load manifest in Outlook: Get Add-ins → My add-ins → Custom add-ins
+```
 
-1. Load the manifest in Outlook:
+## 🛠️ Development
 
-   - Go to Outlook → Get Add-ins → My add-ins → Custom add-ins
-   - Choose "Add from file" and select `frontend/manifest.xml`
+### Backend Server (Port 8000)
 
-2. For development, ensure the frontend is running on `http://localhost:3000`
+```bash
+cd backend
+npm run dev     # Start with hot reload
+npm run build   # Build for production
+npm start       # Start production server
+```
 
-## API Endpoints
+**API Endpoints:**
 
-### Authentication
+- `GET /health` - Health check
+- `POST /api/auth/microsoft/profile` - User authentication
+- `GET /api/auth/me` - Current user info
+- `POST /api/auth/logout` - Logout
 
-- `GET /api/auth/microsoft` - Get Microsoft OAuth URL
-- `GET /api/auth/microsoft/callback` - Handle OAuth callback
-- `POST /api/auth/refresh` - Refresh JWT tokens
-- `POST /api/auth/logout` - Logout user
-- `GET /api/auth/me` - Get current user profile
+### Office Add-in (Port 3000)
 
-### Calendar (Future Implementation)
+```bash
+cd whattime
+npm start           # Build and start with HTTPS
+npm run dev-server  # Start server only (no auto-sideload)
+npm run build       # Build for production
+```
 
-- `GET /api/calendar/connections` - Get connected calendars
-- `GET /api/calendar/events` - Get calendar events
-- `GET /api/calendar/free-busy` - Check availability
+**Key Files:**
 
-## Database Schema
+- `src/taskpane/taskpane.html` - Main add-in interface
+- `src/taskpane/taskpane.ts` - Add-in logic and API calls
+- `src/middle-tier/app.ts` - Express server with SSO helpers
+- `manifest.xml` - Office Add-in configuration
 
-### Users Table
+### Testing Commands
 
-- `id` - Primary key
-- `email` - User email address
-- `name` - User display name
-- `microsoft_id` - Microsoft Graph user ID
-- `created_at` / `updated_at` - Timestamps
+```bash
+# Check servers
+curl -k https://localhost:3000/taskpane.html  # Office Add-in
+curl http://localhost:8000/health             # Backend API
 
-### Calendar Connections Table
+# Validate manifest
+npx office-addin-manifest validate whattime/manifest.xml
 
-- `id` - Primary key
-- `user_id` - Foreign key to users
-- `provider` - Calendar provider (microsoft)
-- `email` - Calendar email
-- `access_token` - Encrypted OAuth token
-- `refresh_token` - Encrypted refresh token
-- `expires_at` - Token expiration
-- `created_at` / `updated_at` - Timestamps
+# Test authentication
+curl -X POST http://localhost:8000/api/auth/microsoft/profile \
+  -H "Content-Type: application/json" \
+  -d '{"profile":{"email":"test@example.com","displayName":"Test User"}}'
+```
 
-## Security Features
+## 🎯 Development Roadmap
 
-- **CORS Protection** - Configured for specific origins
-- **Rate Limiting** - API request throttling
-- **Helmet Security** - Security headers and CSP
-- **JWT Authentication** - Secure token-based auth
-- **Token Encryption** - Sensitive data encryption
-- **Input Validation** - Request data validation
+### ✅ Phase 1: Foundation & Authentication (COMPLETED)
 
-## Development Scripts
+- Office Add-in infrastructure
+- Microsoft Graph SSO integration
+- Backend API connection
+- User authentication flow
 
-### Backend
+### 🎯 Phase 2: Core Meeting Management (NEXT)
 
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build for production
-- `npm run start` - Start production server
-- `npm run db:migrate` - Run database migrations
+- Replace welcome screen with meeting creation form
+- Port UI components from Next.js example to Office Add-in
+- Implement time zone handling and participant management
+- Connect to backend meeting APIs
 
-### Frontend
+### 🎯 Phase 3: Response Management System
 
-- `npm run addin:dev` - Start add-in development server
-- `npm run addin:build` - Build add-in for production
-- `npm run dev` - Standard Next.js development
-- `npm run build` - Build for production
+- Email generation with interactive time grids
+- Response collection and tracking
+- Dashboard with pending/upcoming meetings
+- Analytics and availability visualization
 
-## Production Deployment
+### 🎯 Phase 4: Advanced Features
 
-### Backend Deployment
+- Meeting confirmation and calendar integration
+- Conflict detection and resolution
+- Advanced analytics and optimization
+- Responsive design improvements
 
-1. Set up PostgreSQL database
-2. Configure environment variables
-3. Run database migrations
-4. Deploy to hosting service (Railway, Heroku, etc.)
+### 🎯 Phase 5: Production Deployment
 
-### Frontend Deployment
+- Production infrastructure setup
+- Security hardening and testing
+- Documentation and user training
+- Monitoring and backup systems
 
-1. Update `frontend/manifest.xml` with production URLs
-2. Build static files: `npm run addin:build`
-3. Deploy to static hosting (Vercel, Netlify, etc.)
-4. Update Office add-in manifest with production URLs
+## 🏢 Meeting Management Features (Planned)
 
-## Architecture Notes
+### Core Features
 
-### Authentication Flow
+- **Meeting Creation**: Title, description, location, duration (15-120 minutes)
+- **Time Zone Support**: 15 different zones (ET, CT, MT, PT, GMT, BST, CET, EET, MSK, GST, IST, CST Asia, JST, AEST, NZST)
+- **Participant Groups**: Organize attendees by project, department, or role
+- **Location Integration**: Quick-add for Zoom, Teams, Webex
+- **Email Requests**: HTML emails with interactive availability grids
 
-1. User clicks "Connect Microsoft Calendar"
-2. Frontend opens Microsoft OAuth window
-3. User authenticates and grants permissions
-4. OAuth callback creates user and calendar connection
-5. JWT tokens are issued and stored securely
-6. Frontend receives user session and updates state
+### Advanced Features
 
-### State Management
+- **Response Tracking**: Real-time availability collection
+- **Conflict Detection**: Identify scheduling conflicts
+- **Analytics**: Response rates, availability heatmaps
+- **Smart Suggestions**: Optimal meeting time recommendations
 
-- **Zustand Store** - Handles authentication state
-- **React Query** - Server state management (future)
-- **Local Storage** - Persistent auth token storage
+## 🔧 Technology Stack
 
-### Component Architecture
+### Office Add-in
 
-- **Taskpane** - Main add-in interface
-- **UI Components** - Reusable, typed components
-- **Auth Pages** - OAuth success/error handling
-- **Commands** - UI-less add-in functions
+- **TypeScript** - Type-safe development
+- **HTML/CSS** - Custom add-in interface
+- **Microsoft Graph** - Office 365 integration
+- **Express.js** - Local server for SSO
+- **Webpack** - Build and bundling
 
-## Future Enhancements
+### Backend API
 
-- [ ] Calendar event creation and editing
-- [ ] Smart meeting time suggestions
-- [ ] Participant availability matrix
-- [ ] Meeting conflict resolution
-- [ ] Calendar synchronization
-- [ ] Recurring meeting optimization
-- [ ] Integration with Teams/Zoom
-- [ ] Email scheduling templates
+- **Express.js** - Web application framework
+- **Drizzle ORM** - Type-safe database operations
+- **PostgreSQL** - Primary database
+- **JWT** - Authentication tokens
+- **Microsoft Graph** - Calendar and user APIs
 
-## Contributing
+### Development Tools
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+- **ngrok** - Local tunnel for Outlook testing
+- **HTTPS** - Required for Office Add-ins
+- **Git** - Version control with clean commit history
 
-## License
+## 📋 Project Status
 
-This project is licensed under the MIT License.
+- **Environment**: Development mode with mock SSO data
+- **Database**: PostgreSQL with user management working
+- **Authentication**: Full SSO flow implemented and tested
+- **UI**: Currently showing welcome screen (next: meeting creation form)
+- **API**: Backend endpoints working, ready for meeting management features
 
-## Support
+## 🤝 Contributing
 
-For support and questions:
+1. Read `DEVELOPMENT_PLAN.md` for detailed technical context
+2. Check current phase and pick up specific tasks
+3. Test both Office Add-in and backend API after changes
+4. Update development plan with progress
+5. Follow conventional commit messages
 
-- Create an issue in the GitHub repository
-- Check the troubleshooting section in `/docs`
-- Review Microsoft Office Add-ins documentation
+## 📄 License
+
+[License information to be added]
+
+---
+
+**Last Updated**: Phase 1.2 COMPLETED - Authentication integration working  
+**Next Milestone**: Phase 1.3 - UI Component Analysis and Migration  
+**Current Focus**: Replace welcome screen with meeting creation interface

@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Description: “Enforce clean code, testing, linting, and commit standards.”
+
+- Follow the project's code structure and architecture.
+- Ensure all changes include tests and respect CI pipeline steps.
+- Never generate non-working placeholder code.
+- Do not skip linting, testing, or formatting.
+- Follow commit conventions (e.g., Conventional Commits).
+- Ask before making schema changes or unsafe refactors.

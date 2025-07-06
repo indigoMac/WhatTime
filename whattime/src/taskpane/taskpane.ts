@@ -10,86 +10,100 @@ import { getUserData } from "../helpers/sso-helper";
 // Environment detection
 const isDevelopment = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 
+// Backend URL configuration
+const getBackendUrl = () => {
+  if (isDevelopment) {
+    // When running locally, use localhost
+    return "http://localhost:8000";
+  } else {
+    // When running through ngrok, use the ngrok URL with backend port
+    // Since ngrok forwards to port 3000 (Office Add-in), we need to proxy to backend
+    // For now, we'll use a relative path that the Office Add-in server can proxy
+    return "/api/backend";
+  }
+};
+
 Office.onReady((info) => {
   if (info.host === Office.HostType.Outlook) {
-    const connectButton = document.getElementById("connectCalendarButton");
-    const findTimesButton = document.getElementById("findTimesButton");
-    const getProfileButton = document.getElementById("getProfileButton");
-
-    if (connectButton) connectButton.onclick = connectCalendar;
-    if (findTimesButton) findTimesButton.onclick = findOptimalTimes;
-    if (getProfileButton) getProfileButton.onclick = handleGetProfile;
-
-    // IMMEDIATELY TEST CALENDAR ACCESS
-    testCalendarAccess();
+    // Automatically authenticate when the add-in loads
+    initializeAddIn();
   }
 });
 
 /**
- * TEST CALENDAR ACCESS - This proves the add-in has real Outlook integration
+ * Initialize the add-in with automatic authentication
  */
-function testCalendarAccess() {
+async function initializeAddIn(): Promise<void> {
   const messageArea = document.getElementById("message-area");
 
   try {
-    // Test if we can access Outlook user profile (this works without SSO)
-    const userProfile = Office.context.mailbox.userProfile;
-
-    if (userProfile && userProfile.emailAddress) {
-      if (messageArea) {
-        messageArea.innerHTML = `
-          <div style="color: green; padding: 10px; border: 1px solid #4CAF50; border-radius: 4px; background-color: #f0fff0;">
-            <strong>✅ CALENDAR ACCESS CONFIRMED!</strong><br>
-            <small>Email: ${userProfile.emailAddress}</small><br>
-            <small>Display Name: ${userProfile.displayName}</small><br>
-            <small>Time Zone: ${userProfile.timeZone}</small><br>
-            <small>🎉 This add-in HAS REAL OUTLOOK INTEGRATION!</small><br><br>
-            <button id="startWithBasicAccess" style="background: #0078d4; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
-              🚀 Start Building Features (Skip SSO for now)
-            </button>
-          </div>
-        `;
-
-        // Add click handler for the bypass button
-        const startButton = document.getElementById("startWithBasicAccess");
-        if (startButton) {
-          startButton.onclick = () => {
-            // Use the basic Office context data to start the app
-            const basicUserData = {
-              id: userProfile.emailAddress, // Use email as ID for now
-              mail: userProfile.emailAddress,
-              userPrincipalName: userProfile.emailAddress,
-              displayName: userProfile.displayName,
-              givenName: userProfile.displayName.split(" ")[0] || "User",
-              surname: userProfile.displayName.split(" ").slice(1).join(" ") || "",
-            };
-
-            console.log("🚀 Starting with basic Office context data:", basicUserData);
-
-            // Skip backend auth for now, go straight to the interface
-            showMainInterface(basicUserData);
-          };
-        }
-      }
-      console.log("✅ FULL OUTLOOK ACCESS CONFIRMED:", userProfile);
-    } else {
-      if (messageArea) {
-        messageArea.textContent = "⚠️ Running in browser - limited functionality";
-        messageArea.style.color = "orange";
-      }
-    }
-  } catch (error) {
-    console.error("Calendar access test failed:", error);
     if (messageArea) {
-      messageArea.textContent = "⚠️ Calendar access test failed - check console";
-      messageArea.style.color = "red";
+      messageArea.innerHTML = `
+        <div style="color: #0078d4; padding: 10px; border: 1px solid #0078d4; border-radius: 4px; background-color: #f0f8ff;">
+          <strong>🔄 Initializing WhatTime...</strong><br>
+          <small>Connecting to your calendar...</small>
+        </div>
+      `;
+    }
+
+    // Try automatic SSO first (this should work seamlessly)
+    const accessToken = await getAccessTokenSilently();
+    const userProfile = await getUserProfileFromGraph(accessToken);
+
+    // Connect to backend and show main interface
+    await handleSSOSuccess(userProfile);
+  } catch (error) {
+    console.log("Automatic SSO failed, trying fallback:", error);
+
+    // If automatic SSO fails, try with prompts (first-time consent)
+    try {
+      const accessToken = await getAccessTokenWithPrompts();
+      const userProfile = await getUserProfileFromGraph(accessToken);
+      await handleSSOSuccess(userProfile);
+    } catch (fallbackError) {
+      console.log("SSO with prompts failed, using Office context:", fallbackError);
+
+      // Final fallback - use basic Office context
+      await handleSSOFallback();
     }
   }
 }
 
 /**
+ * Get access token silently (no prompts) - for returning users
+ */
+async function getAccessTokenSilently(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    Office.auth
+      .getAccessToken({
+        allowSignInPrompt: false, // No prompts - silent authentication
+        allowConsentPrompt: false, // No consent prompts
+        forMSGraphAccess: true,
+      })
+      .then(resolve)
+      .catch(reject);
+  });
+}
+
+/**
+ * Get access token with prompts (for first-time users)
+ */
+async function getAccessTokenWithPrompts(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    Office.auth
+      .getAccessToken({
+        allowSignInPrompt: true, // Allow sign-in prompts
+        allowConsentPrompt: true, // Allow consent prompts
+        forMSGraphAccess: true,
+      })
+      .then(resolve)
+      .catch(reject);
+  });
+}
+
+/**
  * Handle the "Get My User Profile Information" button click
- * Uses mock data in development, real SSO in staging/production
+ * Streamlined authentication without excessive debugging
  */
 export async function handleGetProfile() {
   try {
@@ -101,12 +115,6 @@ export async function handleGetProfile() {
 
     if (isDevelopment) {
       // Development: Use mock data
-      console.log("🔧 Development mode: Using mock SSO data");
-      if (messageArea) {
-        messageArea.textContent = "Development mode: Using mock authentication...";
-        messageArea.style.color = "orange";
-      }
-
       const mockUserData = {
         id: "dev-user-123",
         mail: "developer@whattime.dev",
@@ -116,105 +124,199 @@ export async function handleGetProfile() {
         surname: "User",
       };
 
-      setTimeout(() => handleSSOSuccess(mockUserData), 500); // Simulate auth delay
+      setTimeout(() => handleSSOSuccess(mockUserData), 300);
     } else {
-      // Staging/Production: Use real SSO
-      console.log("🔐 Production mode: Using real Microsoft SSO");
-      if (messageArea) {
-        messageArea.textContent = "Authenticating with Microsoft...";
-        messageArea.style.color = "blue";
+      // Production: Try Office SSO, fallback to Office context
+      try {
+        const accessToken = await getAccessTokenAsync();
+        const userProfile = await getUserProfileFromGraph(accessToken);
+        await handleSSOSuccess(userProfile);
+      } catch (ssoError) {
+        // Simple fallback - use Office context directly
+        await handleSSOFallback();
       }
-      getUserData(handleSSOSuccess);
     }
   } catch (error) {
-    console.error("Error during authentication:", error);
+    console.error("Authentication failed:", error);
     const messageArea = document.getElementById("message-area");
     if (messageArea) {
-      messageArea.textContent = "Authentication failed. Please try again.";
+      messageArea.textContent = `Authentication failed: ${error.message}`;
       messageArea.style.color = "red";
     }
   }
 }
 
 /**
- * Handle successful SSO and connect to backend API
+ * Get access token using Office's built-in SSO (Industry Standard)
+ */
+async function getAccessTokenAsync(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    Office.auth
+      .getAccessToken({
+        allowSignInPrompt: true,
+        allowConsentPrompt: true,
+        forMSGraphAccess: true,
+      })
+      .then((token) => {
+        resolve(token);
+      })
+      .catch((error) => {
+        reject(error);
+      });
+  });
+}
+
+/**
+ * Get user profile from Microsoft Graph using the access token
+ */
+async function getUserProfileFromGraph(accessToken: string): Promise<any> {
+  const response = await fetch("https://graph.microsoft.com/v1.0/me", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get user profile: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Simple fallback using Office context - for when SSO completely fails
+ */
+async function handleSSOFallback(): Promise<void> {
+  const userProfile = Office.context.mailbox.userProfile;
+
+  if (userProfile && userProfile.emailAddress) {
+    const basicUserData = {
+      id: userProfile.emailAddress,
+      email: userProfile.emailAddress,
+      mail: userProfile.emailAddress,
+      userPrincipalName: userProfile.emailAddress,
+      displayName: userProfile.displayName,
+      givenName: userProfile.displayName.split(" ")[0] || "User",
+      surname: userProfile.displayName.split(" ").slice(1).join(" ") || "",
+    };
+
+    await handleSSOSuccess(basicUserData);
+  } else {
+    throw new Error("No authentication method available");
+  }
+}
+
+/**
+ * Handle successful SSO and connect to backend API - streamlined
  */
 export async function handleSSOSuccess(graphData: any): Promise<void> {
   const messageArea = document.getElementById("message-area");
-
-  console.log("Graph data received:", graphData);
+  const loadingIndicator = document.getElementById("loading-indicator");
 
   if (graphData && graphData.displayName) {
     try {
-      // Update message to show we're connecting to backend
       if (messageArea) {
-        messageArea.textContent = "Connecting to WhatTime backend...";
-        messageArea.style.color = "blue";
+        messageArea.innerHTML = `
+          <div style="color: #0078d4; padding: 10px; border: 1px solid #0078d4; border-radius: 4px; background-color: #f0f8ff;">
+            <strong>🔗 Connecting to WhatTime backend...</strong><br>
+            <small>Setting up your account...</small>
+          </div>
+        `;
       }
 
-      // Now authenticate with our backend API using the Microsoft profile data
       const backendResponse = await authenticateWithBackend(graphData);
 
       if (backendResponse.success) {
-        // Store the JWT token for future API calls
-        if (typeof localStorage !== "undefined") {
-          localStorage.setItem("whattime_token", backendResponse.data.accessToken);
+        // Hide loading indicator
+        if (loadingIndicator) {
+          loadingIndicator.style.display = "none";
         }
 
-        // Show success and transition to main app interface
         if (messageArea) {
-          messageArea.textContent = `✅ Authenticated as ${graphData.displayName}`;
-          messageArea.style.color = "green";
+          messageArea.innerHTML = `
+            <div style="color: green; padding: 10px; border: 1px solid #4CAF50; border-radius: 4px; background-color: #f0fff0;">
+              <strong>✅ Connected successfully!</strong><br>
+              <small>Welcome to WhatTime, ${graphData.displayName}</small>
+            </div>
+          `;
         }
 
-        // Hide welcome screen and show main interface
+        // Quick transition to main interface
         setTimeout(() => {
           showMainInterface(graphData);
-        }, 1500);
+        }, 1000);
       } else {
         throw new Error(backendResponse.error || "Backend authentication failed");
       }
     } catch (error) {
       console.error("Backend authentication error:", error);
+      if (loadingIndicator) {
+        loadingIndicator.style.display = "none";
+      }
       if (messageArea) {
-        messageArea.textContent = `❌ Backend connection failed: ${error.message}`;
-        messageArea.style.color = "red";
+        messageArea.innerHTML = `
+          <div style="color: red; padding: 10px; border: 1px solid #f44336; border-radius: 4px; background-color: #ffebee;">
+            <strong>❌ Connection failed</strong><br>
+            <small>${error.message}</small>
+          </div>
+        `;
       }
     }
   } else {
-    // Handle SSO failure
+    if (loadingIndicator) {
+      loadingIndicator.style.display = "none";
+    }
     if (messageArea) {
-      messageArea.textContent = "❌ Failed to get user profile.";
-      messageArea.style.color = "red";
+      messageArea.innerHTML = `
+        <div style="color: red; padding: 10px; border: 1px solid #f44336; border-radius: 4px; background-color: #ffebee;">
+          <strong>❌ Invalid profile data</strong><br>
+          <small>Unable to retrieve user information</small>
+        </div>
+      `;
     }
   }
 }
 
 /**
- * Authenticate with our backend API using Microsoft Graph profile data
+ * Authenticate with backend API - clean version without debug spam
  */
 async function authenticateWithBackend(graphData: any): Promise<any> {
   try {
-    const response = await fetch("http://localhost:8000/api/auth/microsoft/profile", {
+    const email = graphData.mail || graphData.userPrincipalName || graphData.email;
+
+    if (!email) {
+      throw new Error("No email found in profile data");
+    }
+
+    const profilePayload = {
+      profile: {
+        id: graphData.id,
+        email: email,
+        displayName: graphData.displayName,
+        firstName: graphData.givenName,
+        lastName: graphData.surname,
+      },
+    };
+
+    const backendUrl = `${getBackendUrl()}/api/auth/microsoft/profile`;
+
+    const response = await fetch(backendUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        profile: {
-          id: graphData.id,
-          email: graphData.mail || graphData.userPrincipalName,
-          displayName: graphData.displayName,
-          firstName: graphData.givenName,
-          lastName: graphData.surname,
-        },
-      }),
+      body: JSON.stringify(profilePayload),
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Backend API error: ${response.status} - ${errorText}`);
+    }
 
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error calling backend API:", error);
     throw error;
   }
 }
@@ -286,88 +388,67 @@ function showMainInterface(userData: any): void {
 }
 
 /**
- * Create a new meeting request using the backend API
+ * Create a new meeting request
  */
-export async function createMeetingRequest(): Promise<void> {
-  const statusDiv = document.getElementById("meetingStatus");
+async function createMeetingRequest(): Promise<void> {
   const titleInput = document.getElementById("meetingTitle") as HTMLInputElement;
   const durationSelect = document.getElementById("meetingDuration") as HTMLSelectElement;
   const attendeesTextarea = document.getElementById("attendeeEmails") as HTMLTextAreaElement;
+  const statusDiv = document.getElementById("meetingStatus");
 
-  if (!titleInput?.value || !attendeesTextarea?.value) {
-    if (statusDiv) {
-      statusDiv.innerHTML = '<p style="color: red;">Please fill in meeting title and attendees.</p>';
-    }
+  if (!titleInput || !durationSelect || !attendeesTextarea || !statusDiv) {
+    console.error("Required form elements not found");
     return;
   }
 
+  const title = titleInput.value.trim();
+  const duration = parseInt(durationSelect.value);
+  const attendeeEmails = attendeesTextarea.value
+    .split("\n")
+    .map((email) => email.trim())
+    .filter((email) => email.length > 0);
+
+  if (!title) {
+    statusDiv.innerHTML = '<p style="color: red;">Please enter a meeting title.</p>';
+    return;
+  }
+
+  if (attendeeEmails.length === 0) {
+    statusDiv.innerHTML = '<p style="color: red;">Please enter at least one attendee email.</p>';
+    return;
+  }
+
+  statusDiv.innerHTML = '<p style="color: blue;">Creating meeting request...</p>';
+
   try {
-    if (statusDiv) {
-      statusDiv.innerHTML = '<p style="color: blue;">Creating meeting request...</p>';
-    }
+    const response = await fetch(`${getBackendUrl()}/meetings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title,
+        duration,
+        attendeeEmails,
+      }),
+    });
 
-    // Parse attendees
-    const attendees = attendeesTextarea.value
-      .split("\n")
-      .map((email) => email.trim())
-      .filter((email) => email && email.includes("@"));
-
-    if (attendees.length === 0) {
-      throw new Error("Please enter at least one valid email address");
-    }
-
-    // First, let's check the user's calendar availability using Office.js
-    const userAvailability = await checkUserAvailability(parseInt(durationSelect.value));
-
-    if (statusDiv) {
-      statusDiv.innerHTML = '<p style="color: blue;">📅 Checking your calendar availability...</p>';
-    }
-
-    // For now, create a simple meeting request without backend
-    // This proves the concept works with real Outlook integration
-    const meetingData = {
-      id: `meeting_${Date.now()}`,
-      title: titleInput.value,
-      duration: parseInt(durationSelect.value),
-      attendees: attendees,
-      creator: Office.context.mailbox.userProfile.emailAddress,
-      timeZone: Office.context.mailbox.userProfile.timeZone,
-      availability: userAvailability,
-    };
-
-    console.log("📅 Meeting request created:", meetingData);
-
-    if (statusDiv) {
+    if (response.ok) {
+      const result = await response.json();
       statusDiv.innerHTML = `
-        <div style="color: green; padding: 10px; border: 1px solid #4CAF50; border-radius: 4px; background-color: #f0fff0;">
-          <strong>✅ Meeting request created successfully!</strong><br>
-          <small>Meeting: ${meetingData.title}</small><br>
-          <small>Duration: ${meetingData.duration} minutes</small><br>
-          <small>Attendees: ${attendees.length} people</small><br>
-          <small>Creator: ${meetingData.creator}</small><br>
-          <small>Time Zone: ${meetingData.timeZone}</small><br>
-          <small>📅 Real Outlook integration working!</small><br><br>
-          <button id="proposeTimesBtn" style="background: #0078d4; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
-            📊 Suggest Optimal Times
-          </button>
+        <div style="color: green; padding: 10px; border: 1px solid #4CAF50; border-radius: 4px; background-color: #f4f4f4;">
+          <p><strong>Meeting request created successfully!</strong></p>
+          <p>Meeting ID: ${result.meetingId}</p>
+          <p>Share this link with attendees: <a href="${result.meetingUrl}" target="_blank">${result.meetingUrl}</a></p>
         </div>
       `;
-
-      // Add handler for suggesting times
-      const proposeBtn = document.getElementById("proposeTimesBtn");
-      if (proposeBtn) {
-        proposeBtn.onclick = () => suggestOptimalTimes(meetingData);
-      }
+    } else {
+      const error = await response.json();
+      statusDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
     }
-
-    // Clear form
-    titleInput.value = "";
-    attendeesTextarea.value = "";
   } catch (error) {
-    console.error("Error creating meeting:", error);
-    if (statusDiv) {
-      statusDiv.innerHTML = `<p style="color: red;">❌ Error: ${error.message}</p>`;
-    }
+    console.error("Error creating meeting request:", error);
+    statusDiv.innerHTML = '<p style="color: red;">Failed to create meeting request. Please try again.</p>';
   }
 }
 

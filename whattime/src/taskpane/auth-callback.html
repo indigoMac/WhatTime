@@ -1,0 +1,138 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Authentication Callback</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        padding: 20px;
+        text-align: center;
+        background-color: #f5f5f5;
+      }
+      .message {
+        padding: 20px;
+        border-radius: 4px;
+        margin: 20px 0;
+      }
+      .success {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+      .loading {
+        background-color: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="message" class="message loading">Processing authentication...</div>
+
+    <script>
+      (function () {
+        try {
+          // Parse URL parameters
+          const urlParams = new URLSearchParams(window.location.search);
+          const token = urlParams.get("token");
+          const error = urlParams.get("error");
+
+          const messageDiv = document.getElementById("message");
+
+          if (error) {
+            // Handle error case
+            messageDiv.className = "message error";
+            messageDiv.textContent = `Authentication failed: ${error}`;
+
+            // Send error to parent dialog
+            if (window.parent && window.parent.Office) {
+              Office.context.ui.messageParent(
+                JSON.stringify({
+                  success: false,
+                  error: error,
+                }),
+              );
+            }
+          } else if (token) {
+            // Handle success case
+            messageDiv.className = "message success";
+            messageDiv.textContent = "Authentication successful! Closing...";
+
+            // Decode the JWT token to get user info (just for display)
+            try {
+              const payload = JSON.parse(atob(token.split(".")[1]));
+
+              // Send success to parent dialog
+              if (window.parent && window.parent.Office) {
+                Office.context.ui.messageParent(
+                  JSON.stringify({
+                    success: true,
+                    data: {
+                      accessToken: token,
+                      user: {
+                        id: payload.userId,
+                        email: payload.email,
+                        displayName: payload.email, // We'll get full profile from backend
+                      },
+                    },
+                  }),
+                );
+              }
+            } catch (jwtError) {
+              console.error("Error decoding JWT:", jwtError);
+              // Still send success but with limited info
+              if (window.parent && window.parent.Office) {
+                Office.context.ui.messageParent(
+                  JSON.stringify({
+                    success: true,
+                    data: {
+                      accessToken: token,
+                      user: {
+                        id: "unknown",
+                        email: "unknown",
+                        displayName: "User",
+                      },
+                    },
+                  }),
+                );
+              }
+            }
+          } else {
+            // No token or error - something went wrong
+            messageDiv.className = "message error";
+            messageDiv.textContent = "Authentication failed: No token received";
+
+            if (window.parent && window.parent.Office) {
+              Office.context.ui.messageParent(
+                JSON.stringify({
+                  success: false,
+                  error: "No token received",
+                }),
+              );
+            }
+          }
+        } catch (error) {
+          console.error("Callback error:", error);
+          const messageDiv = document.getElementById("message");
+          messageDiv.className = "message error";
+          messageDiv.textContent = `Error: ${error.message}`;
+
+          if (window.parent && window.parent.Office) {
+            Office.context.ui.messageParent(
+              JSON.stringify({
+                success: false,
+                error: error.message,
+              }),
+            );
+          }
+        }
+      })();
+    </script>
+  </body>
+</html>

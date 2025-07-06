@@ -61,6 +61,11 @@ module.exports = async (env, options) => {
           template: "./src/helpers/fallbackauthdialog.html",
           chunks: ["polyfill", "fallbackauthdialog"],
         }),
+        new HtmlWebpackPlugin({
+          filename: "auth-callback.html",
+          template: "./src/taskpane/auth-callback.html",
+          chunks: ["polyfill"],
+        }),
         new CopyWebpackPlugin({
           patterns: [
             {

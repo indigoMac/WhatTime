@@ -10,18 +10,17 @@ import { Configuration, LogLevel, PublicClientApplication, RedirectRequest } fro
 import { callGetUserData } from "./middle-tier-calls";
 import { showMessage } from "./message-helper";
 
-const clientId = "{application GUID here}"; //This is your client ID
-const accessScope = `api://${window.location.host}/${clientId}/access_as_user`;
+const clientId = "f91d5530-aa82-449c-840d-53004730334f"; // Your actual client ID from manifest.xml
 const loginRequest: RedirectRequest = {
-  scopes: [accessScope],
-  extraScopesToConsent: ["user.read"],
+  scopes: ["User.Read", "Calendars.Read"], // Use standard Microsoft Graph scopes
+  extraScopesToConsent: ["User.Read", "Calendars.Read"],
 };
 
 const msalConfig: Configuration = {
   auth: {
     clientId: clientId,
     authority: "https://login.microsoftonline.com/common",
-    redirectUri: "https://localhost:{PORT}/fallbackauthdialog.html", // Update config script to enable `https://${window.location.host}/fallbackauthdialog.html`,
+    redirectUri: `https://${window.location.host}/fallbackauthdialog.html`, // Use actual ngrok URL
     navigateToLoginRequestUrl: false,
   },
   cache: {

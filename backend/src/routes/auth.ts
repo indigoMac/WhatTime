@@ -1,4 +1,5 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
+import type { Request, Response } from "express";
 import { microsoftAuthService } from "../auth/microsoft";
 import { jwtService } from "../auth/jwt";
 import { db } from "../database/connection";
@@ -12,7 +13,7 @@ const router = Router();
  * GET /auth/microsoft
  * Initiate Microsoft OAuth flow
  */
-router.get("/microsoft", async (req: Request, res: Response) => {
+router.get("/microsoft", async (req: any, res: any) => {
   try {
     const state = (req.query.state as string) || "";
     const authUrl = await microsoftAuthService.getAuthUrl(state);
@@ -34,22 +35,22 @@ router.get("/microsoft", async (req: Request, res: Response) => {
  * GET /auth/microsoft/callback
  * Handle Microsoft OAuth callback
  */
-router.get("/microsoft/callback", async (req: Request, res: Response) => {
+router.get("/microsoft/callback", async (req: any, res: any) => {
   try {
     const { code, state, error } = req.query;
 
     if (error) {
       console.error("OAuth error:", error);
       return res.redirect(
-        `${process.env.FRONTEND_URL}/auth/error?error=${encodeURIComponent(
-          error as string
-        )}`
+        `${
+          process.env.FRONTEND_URL
+        }/auth-callback.html?error=${encodeURIComponent(error as string)}`
       );
     }
 
     if (!code) {
       return res.redirect(
-        `${process.env.FRONTEND_URL}/auth/error?error=missing_code`
+        `${process.env.FRONTEND_URL}/auth-callback.html?error=missing_code`
       );
     }
 
@@ -78,11 +79,11 @@ router.get("/microsoft/callback", async (req: Request, res: Response) => {
         .insert(users)
         .values({
           email: profile.email,
-          displayName: profile.displayName,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          avatarUrl: profile.photos?.[0]?.value,
-        })
+          displayName: profile.displayName || null,
+          firstName: profile.firstName || null,
+          lastName: profile.lastName || null,
+          avatarUrl: profile.photos?.[0]?.value || null,
+        } as any)
         .returning();
       userId = newUser[0].id;
     } else {
@@ -91,12 +92,12 @@ router.get("/microsoft/callback", async (req: Request, res: Response) => {
       await db
         .update(users)
         .set({
-          displayName: profile.displayName,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          avatarUrl: profile.photos?.[0]?.value,
+          displayName: profile.displayName || null,
+          firstName: profile.firstName || null,
+          lastName: profile.lastName || null,
+          avatarUrl: profile.photos?.[0]?.value || null,
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(users.id, userId));
     }
 
@@ -120,24 +121,24 @@ router.get("/microsoft/callback", async (req: Request, res: Response) => {
         provider: "microsoft",
         providerUserId: profile.id,
         email: profile.email,
-        displayName: profile.displayName,
+        displayName: profile.displayName || null,
         accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        tokenExpiresAt: tokens.expiresAt,
-        scope: tokens.scope,
-      });
+        refreshToken: tokens.refreshToken || null,
+        tokenExpiresAt: tokens.expiresAt || null,
+        scope: tokens.scope || null,
+      } as any);
     } else {
       // Update existing connection with new tokens
       await db
         .update(calendarConnections)
         .set({
           accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-          tokenExpiresAt: tokens.expiresAt,
-          scope: tokens.scope,
+          refreshToken: tokens.refreshToken || null,
+          tokenExpiresAt: tokens.expiresAt || null,
+          scope: tokens.scope || null,
           isActive: true,
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(calendarConnections.id, existingConnection[0].id));
     }
 
@@ -145,20 +146,20 @@ router.get("/microsoft/callback", async (req: Request, res: Response) => {
     const authUser: AuthUser = {
       id: userId,
       email: profile.email,
-      displayName: profile.displayName,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      avatarUrl: profile.photos?.[0]?.value,
+      displayName: profile.displayName || null,
+      firstName: profile.firstName || null,
+      lastName: profile.lastName || null,
+      avatarUrl: profile.photos?.[0]?.value || null,
     };
 
     const jwt = jwtService.generateToken(authUser);
 
     // Redirect to frontend with token
-    res.redirect(`${process.env.FRONTEND_URL}/auth/success?token=${jwt}`);
+    res.redirect(`${process.env.FRONTEND_URL}/auth-callback.html?token=${jwt}`);
   } catch (error) {
     console.error("Error in Microsoft callback:", error);
     res.redirect(
-      `${process.env.FRONTEND_URL}/auth/error?error=callback_failed`
+      `${process.env.FRONTEND_URL}/auth-callback.html?error=callback_failed`
     );
   }
 });
@@ -167,16 +168,43 @@ router.get("/microsoft/callback", async (req: Request, res: Response) => {
  * POST /auth/microsoft/profile
  * Authenticate user with Microsoft Graph profile data from Office Add-in
  */
-router.post("/microsoft/profile", async (req: Request, res: Response) => {
+router.post("/microsoft/profile", async (req: any, res: any) => {
   try {
+    console.log(
+      "🔍 BACKEND DEBUG: Received request body:",
+      JSON.stringify(req.body, null, 2)
+    );
+    console.log(
+      "🔍 BACKEND DEBUG: Request headers:",
+      JSON.stringify(req.headers, null, 2)
+    );
+
     const { profile } = req.body;
 
+    console.log(
+      "🔍 BACKEND DEBUG: Extracted profile:",
+      JSON.stringify(profile, null, 2)
+    );
+    console.log("🔍 BACKEND DEBUG: Profile type:", typeof profile);
+    console.log(
+      "🔍 BACKEND DEBUG: Profile keys:",
+      profile ? Object.keys(profile) : "null"
+    );
+    console.log("🔍 BACKEND DEBUG: Profile.email:", profile?.email);
+    console.log("🔍 BACKEND DEBUG: Profile exists:", !!profile);
+    console.log("🔍 BACKEND DEBUG: Profile.email exists:", !!profile?.email);
+
     if (!profile || !profile.email) {
+      console.log("🔍 BACKEND DEBUG: Validation failed - returning 400");
       return res.status(400).json({
         success: false,
         error: "Profile data with email is required",
       } as ApiResponse);
     }
+
+    console.log(
+      "🔍 BACKEND DEBUG: Validation passed, proceeding with user creation/lookup"
+    );
 
     // Find or create user based on profile data
     let user = await db
@@ -187,65 +215,77 @@ router.post("/microsoft/profile", async (req: Request, res: Response) => {
 
     let userId: string;
     if (user.length === 0) {
+      console.log("🔍 BACKEND DEBUG: Creating new user");
       // Create new user
       const newUser = await db
         .insert(users)
         .values({
           email: profile.email,
-          displayName: profile.displayName,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-        })
+          displayName: profile.displayName || null,
+          firstName: profile.firstName || null,
+          lastName: profile.lastName || null,
+        } as any)
         .returning();
       userId = newUser[0].id;
     } else {
+      console.log("🔍 BACKEND DEBUG: Updating existing user");
       userId = user[0].id;
       // Update existing user with latest profile info
       await db
         .update(users)
         .set({
-          displayName: profile.displayName,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
+          displayName: profile.displayName || null,
+          firstName: profile.firstName || null,
+          lastName: profile.lastName || null,
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(users.id, userId));
     }
 
-    // Generate JWT token
+    // Create AuthUser object
     const authUser: AuthUser = {
       id: userId,
       email: profile.email,
-      displayName: profile.displayName || "",
-      firstName: profile.firstName,
-      lastName: profile.lastName,
+      displayName: profile.displayName || null,
+      firstName: profile.firstName || null,
+      lastName: profile.lastName || null,
+      avatarUrl: profile.avatarUrl || null,
     };
 
+    // Generate JWT tokens
     const accessToken = jwtService.generateToken(authUser);
     const refreshToken = jwtService.generateRefreshToken(authUser);
+
+    console.log(
+      "🔍 BACKEND DEBUG: Authentication successful, returning tokens"
+    );
 
     res.json({
       success: true,
       data: {
+        user: authUser,
         accessToken,
         refreshToken,
-        user: authUser,
       },
-    } as ApiResponse);
+    } as ApiResponse<{
+      user: AuthUser;
+      accessToken: string;
+      refreshToken: string;
+    }>);
   } catch (error) {
-    console.error("Error in Microsoft profile auth:", error);
+    console.error("🔍 BACKEND DEBUG: Error in Microsoft profile auth:", error);
     res.status(500).json({
       success: false,
-      error: "Authentication failed",
+      error: "Failed to authenticate with Microsoft profile",
     } as ApiResponse);
   }
 });
 
 /**
  * POST /auth/refresh
- * Refresh JWT token
+ * Refresh access token using refresh token
  */
-router.post("/refresh", async (req: Request, res: Response) => {
+router.post("/refresh", async (req: any, res: any) => {
   try {
     const { refreshToken } = req.body;
 
@@ -257,13 +297,19 @@ router.post("/refresh", async (req: Request, res: Response) => {
     }
 
     // Verify refresh token
-    const payload = jwtService.verifyRefreshToken(refreshToken);
+    const decoded = jwtService.verifyRefreshToken(refreshToken) as any;
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid refresh token",
+      } as ApiResponse);
+    }
 
-    // Get user from database
+    // Find user
     const user = await db
       .select()
       .from(users)
-      .where(eq(users.id, payload.userId))
+      .where(eq(users.id, decoded.userId))
       .limit(1);
 
     if (user.length === 0) {
@@ -273,17 +319,16 @@ router.post("/refresh", async (req: Request, res: Response) => {
       } as ApiResponse);
     }
 
+    // Create new tokens
     const authUser: AuthUser = {
       id: user[0].id,
       email: user[0].email,
-      displayName: user[0].displayName || "",
-      firstName: user[0].firstName || undefined,
-      lastName: user[0].lastName || undefined,
-      timeZone: user[0].timeZone || undefined,
-      avatarUrl: user[0].avatarUrl || undefined,
+      displayName: user[0].displayName,
+      firstName: user[0].firstName,
+      lastName: user[0].lastName,
+      avatarUrl: user[0].avatarUrl,
     };
 
-    // Generate new tokens
     const newAccessToken = jwtService.generateToken(authUser);
     const newRefreshToken = jwtService.generateRefreshToken(authUser);
 
@@ -292,64 +337,50 @@ router.post("/refresh", async (req: Request, res: Response) => {
       data: {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
-        user: authUser,
       },
-    } as ApiResponse);
+    } as ApiResponse<{
+      accessToken: string;
+      refreshToken: string;
+    }>);
   } catch (error) {
     console.error("Error refreshing token:", error);
     res.status(401).json({
       success: false,
-      error: "Invalid refresh token",
-    } as ApiResponse);
-  }
-});
-
-/**
- * POST /auth/logout
- * Logout user (invalidate session)
- */
-router.post("/logout", async (req: Request, res: Response) => {
-  try {
-    // For JWT tokens, we can't invalidate them on the server side
-    // The client should remove the token from storage
-    // In a more sophisticated setup, you might maintain a blacklist of tokens
-
-    res.json({
-      success: true,
-      message: "Logged out successfully",
-    } as ApiResponse);
-  } catch (error) {
-    console.error("Error during logout:", error);
-    res.status(500).json({
-      success: false,
-      error: "Logout failed",
+      error: "Failed to refresh token",
     } as ApiResponse);
   }
 });
 
 /**
  * GET /auth/me
- * Get current user profile
+ * Get current user information
  */
-router.get("/me", async (req: Request, res: Response) => {
+router.get("/me", async (req: any, res: any) => {
   try {
     const authHeader = req.headers.authorization;
-    const token = jwtService.extractTokenFromHeader(authHeader);
 
-    if (!token) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
         success: false,
-        error: "Authorization token required",
+        error: "Authorization header is required",
       } as ApiResponse);
     }
 
-    const payload = jwtService.verifyToken(token);
+    const token = authHeader.substring(7);
+    const decoded = jwtService.verifyToken(token) as any;
 
-    // Get user from database
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+      } as ApiResponse);
+    }
+
+    // Find user
     const user = await db
       .select()
       .from(users)
-      .where(eq(users.id, payload.userId))
+      .where(eq(users.id, decoded.userId))
       .limit(1);
 
     if (user.length === 0) {
@@ -362,22 +393,21 @@ router.get("/me", async (req: Request, res: Response) => {
     const authUser: AuthUser = {
       id: user[0].id,
       email: user[0].email,
-      displayName: user[0].displayName || "",
-      firstName: user[0].firstName || undefined,
-      lastName: user[0].lastName || undefined,
-      timeZone: user[0].timeZone || undefined,
-      avatarUrl: user[0].avatarUrl || undefined,
+      displayName: user[0].displayName,
+      firstName: user[0].firstName,
+      lastName: user[0].lastName,
+      avatarUrl: user[0].avatarUrl,
     };
 
     res.json({
       success: true,
-      data: authUser,
-    } as ApiResponse<AuthUser>);
+      data: { user: authUser },
+    } as ApiResponse<{ user: AuthUser }>);
   } catch (error) {
-    console.error("Error getting user profile:", error);
+    console.error("Error getting user info:", error);
     res.status(401).json({
       success: false,
-      error: "Invalid or expired token",
+      error: "Failed to get user information",
     } as ApiResponse);
   }
 });

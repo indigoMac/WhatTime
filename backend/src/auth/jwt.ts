@@ -36,7 +36,7 @@ export class JWTService {
       expiresIn: this.getExpiresIn(),
       issuer: "whattime-api",
       audience: "whattime-client",
-    });
+    } as any);
   }
 
   /**
@@ -118,7 +118,7 @@ export class JWTService {
       expiresIn: "30d", // Refresh tokens last longer
       issuer: "whattime-api",
       audience: "whattime-refresh",
-    });
+    } as any);
   }
 
   /**

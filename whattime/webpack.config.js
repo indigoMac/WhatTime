@@ -14,12 +14,12 @@ module.exports = async (env, options) => {
       devtool: "source-map",
       entry: {
         polyfill: ["core-js/stable", "regenerator-runtime/runtime"],
-        taskpane: ["./src/taskpane/taskpane.ts", "./src/taskpane/taskpane.html"],
+        taskpane: ["./src/taskpane/taskpane-react.tsx", "./src/taskpane/taskpane.html"],
         commands: "./src/commands/commands.ts",
         fallbackauthdialog: "./src/helpers/fallbackauthdialog.ts",
       },
       resolve: {
-        extensions: [".ts", ".html", ".js"],
+        extensions: [".ts", ".tsx", ".html", ".js", ".jsx"],
         fallback: {
           buffer: require.resolve("buffer/"),
           http: require.resolve("stream-http"),
@@ -30,16 +30,38 @@ module.exports = async (env, options) => {
       module: {
         rules: [
           {
-            test: /\.ts$/,
+            test: /\.(ts|tsx)$/,
             exclude: /node_modules/,
             use: {
               loader: "babel-loader",
+              options: {
+                presets: [
+                  "@babel/preset-env",
+                  "@babel/preset-typescript",
+                  ["@babel/preset-react", { runtime: "automatic" }],
+                ],
+              },
             },
           },
           {
             test: /\.html$/,
             exclude: /node_modules/,
             use: "html-loader",
+          },
+          {
+            test: /\.css$/,
+            use: [
+              "style-loader",
+              "css-loader",
+              {
+                loader: "postcss-loader",
+                options: {
+                  postcssOptions: {
+                    plugins: [require("tailwindcss"), require("autoprefixer")],
+                  },
+                },
+              },
+            ],
           },
           {
             test: /\.(png|jpg|jpeg|gif|ico)$/,

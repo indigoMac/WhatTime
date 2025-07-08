@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { config } from "dotenv";
+import path from "path";
 
 // Load environment variables
 config();
@@ -40,6 +41,9 @@ app.use(limiter);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, "..", "public")));
+
 // Health check endpoint
 app.get("/health", (req: any, res: any) => {
   res.json({
@@ -59,6 +63,7 @@ app.get("/health", (req: any, res: any) => {
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/meetings", meetingsRoutes);
+app.use("/api", meetingsRoutes); // Add direct access to response endpoints
 
 // Debug endpoint for React component logging
 app.post("/api/debug", (req: any, res: any) => {

@@ -1,0 +1,7 @@
+build:
+  docker:
+    backend: backend/Dockerfile
+    frontend: whattime/Dockerfile.prod
+run:
+  backend: npm start
+  frontend: npm run dev-server

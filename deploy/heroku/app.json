@@ -1,0 +1,54 @@
+{
+  "name": "whattime-office-addin",
+  "description": "WhatTime Office Add-in for meeting coordination",
+  "image": "heroku/nodejs",
+  "stack": "heroku-22",
+  "keywords": ["nodejs", "office-addin", "meeting-scheduler"],
+  "website": "https://github.com/yourusername/whattime",
+  "repository": "https://github.com/yourusername/whattime",
+  "success_url": "/health",
+  "env": {
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production"
+    },
+    "JWT_SECRET": {
+      "description": "Secret key for JWT tokens",
+      "generator": "secret"
+    },
+    "MICROSOFT_CLIENT_ID": {
+      "description": "Microsoft Graph API Client ID"
+    },
+    "MICROSOFT_CLIENT_SECRET": {
+      "description": "Microsoft Graph API Client Secret"
+    },
+    "FRONTEND_URL": {
+      "description": "Frontend URL for CORS",
+      "value": "https://yourapp.herokuapp.com"
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-postgresql:mini",
+      "as": "DATABASE"
+    },
+    {
+      "plan": "heroku-redis:mini",
+      "as": "REDIS"
+    }
+  ],
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "scripts": {
+    "postdeploy": "npm run db:migrate"
+  }
+}
